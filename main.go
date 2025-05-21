@@ -120,7 +120,7 @@ func (d *RSSDate) UnmarshalJSON(data []byte) error {
 }
 
 func (d RSSDate) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	formatted := time.Time(d).Format(time.RFC1123Z) // Use RFC1123Z for time zone offset
+	formatted := time.Time(d).Format(time.RFC1123Z) // RFC1123Z for time zone offset
 	return e.EncodeElement(formatted, start)
 }
 
