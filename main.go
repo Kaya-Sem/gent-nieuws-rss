@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const URL = "https://data.stad.gent/api/explore/v2.1/catalog/datasets/recente-nieuwsberichten-van-stadgent/records?limit=100"
+const (
+	URL  = "https://data.stad.gent/api/explore/v2.1/catalog/datasets/recente-nieuwsberichten-van-stadgent/records?limit=100"
+	PORT = "8080"
+)
 
 func main() {
 	fmt.Println("Starting RSS feed generator...")
@@ -24,6 +27,14 @@ func main() {
 
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
+
+	go func() {
+		http.HandleFunc("/feed", handleFeedRequest)
+		fmt.Printf("Starting HTTP server on port %s...\n", PORT)
+		if err := http.ListenAndServe(":"+PORT, nil); err != nil {
+			fmt.Printf("Error starting server: %v\n", err)
+		}
+	}()
 
 	fmt.Println("Feed generator running. Updates every hour...")
 
@@ -38,6 +49,17 @@ func main() {
 			}
 		}
 	}
+}
+
+func handleFeedRequest(w http.ResponseWriter, r *http.Request) {
+	feed, err := os.ReadFile("feed.xml")
+	if err != nil {
+		http.Error(w, "Error reading feed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.Write(feed)
 }
 
 func generateAndSaveFeed() error {
