@@ -45,19 +45,41 @@ type NieuwsResponse struct {
 }
 
 type Nieuwsbericht struct {
-	Bericht string    `json:"nieuwsbericht" xml:"guid"`
-	Page    string    `json:"subjectpage" xml:"link"`
-	Title   string    `json:"titel" xml:"title"`
-	Content string    `json:"inhoud" xml:"description"`
-	Date    time.Time `json:"publicatiedatum" xml:"pubDate"`
+	Bericht string  `json:"nieuwsbericht" xml:"link"`
+	Page    string  `json:"subjectpage" xml:"guid"`
+	Title   string  `json:"titel" xml:"title"`
+	Content string  `json:"inhoud" xml:"description"`
+	Date    RSSDate `json:"publicatiedatum" xml:"pubDate"`
 }
 
 type Channel struct {
+	XMLName     xml.Name        `xml:"channel"`
 	Title       string          `xml:"title"`
 	Link        string          `xml:"link"`
 	Description string          `xml:"description"`
-	PubDate     time.Time       `xml:"pubDate"`
+	PubDate     RSSDate         `xml:"pubDate"`
+	WebMaster   string          `xml:"webMaster"`
 	Items       []Nieuwsbericht `xml:"item"`
+}
+
+type RSSDate time.Time
+
+func (d *RSSDate) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return err
+	}
+	*d = RSSDate(t)
+	return nil
+}
+
+func (d RSSDate) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	formatted := time.Time(d).Format(time.RFC1123Z) // Use RFC1123Z for time zone offset
+	return e.EncodeElement(formatted, start)
 }
 
 func getNieuwsberichten() ([]Nieuwsbericht, error) {
@@ -87,6 +109,12 @@ func getNieuwsberichten() ([]Nieuwsbericht, error) {
 	return nieuwsResp.Results, nil
 }
 
+type RSS struct {
+	XMLName xml.Name `xml:"rss"`
+	Version string   `xml:"version,attr"`
+	Channel Channel  `xml:"channel"`
+}
+
 func generateRSSFeed() ([]byte, error) {
 	items, err := getNieuwsberichten()
 	if err != nil {
@@ -97,11 +125,22 @@ func generateRSSFeed() ([]byte, error) {
 		Title:       "Nieuwsberichten Gent",
 		Link:        "https://data.stad.gent/explore/dataset/recente-nieuwsberichten-van-stadgent/api/",
 		Description: "Recente nieuwsberichten van stad.gent",
-		PubDate:     time.Now(),
-		Items:       items,
+		PubDate:     RSSDate(time.Now()),
+		WebMaster:   "kayasem.vancauwenberghe@ugent.be",
+		Items:       make([]Nieuwsbericht, len(items)),
 	}
 
-	xmlData, err := xml.MarshalIndent(feed, "", "    ")
+	for i, item := range items {
+		item.Date = RSSDate(item.Date)
+		feed.Items[i] = item
+	}
+
+	rss := RSS{
+		Version: "2.0",
+		Channel: feed,
+	}
+
+	xmlData, err := xml.MarshalIndent(rss, "", "    ")
 	if err != nil {
 		return nil, err
 	}
@@ -109,5 +148,4 @@ func generateRSSFeed() ([]byte, error) {
 	rssFeed := []byte(xml.Header + string(xmlData))
 
 	return rssFeed, nil
-
 }
