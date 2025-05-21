@@ -14,29 +14,49 @@ import (
 const URL = "https://data.stad.gent/api/explore/v2.1/catalog/datasets/recente-nieuwsberichten-van-stadgent/records?limit=100"
 
 func main() {
+	fmt.Println("Starting RSS feed generator...")
+	fmt.Println("Initial feed generation...")
 
+	if err := generateAndSaveFeed(); err != nil {
+		fmt.Println("Error in initial feed generation:", err)
+		return
+	}
+
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	fmt.Println("Feed generator running. Updates every hour...")
+
+	for {
+		select {
+		case <-ticker.C:
+			fmt.Printf("Updating feed at %s...\n", time.Now().Format(time.RFC1123))
+			if err := generateAndSaveFeed(); err != nil {
+				fmt.Println("Error updating feed:", err)
+			} else {
+				fmt.Println("Feed updated successfully")
+			}
+		}
+	}
+}
+
+func generateAndSaveFeed() error {
 	rssFeed, err := generateRSSFeed()
 	if err != nil {
-		fmt.Println("Error generating RSS feed:", err)
-		return
+		return fmt.Errorf("error generating RSS feed: %w", err)
 	}
 
 	file, err := os.Create("feed.xml")
 	if err != nil {
-		fmt.Println("Error creating file:", err)
-		return
+		return fmt.Errorf("error creating file: %w", err)
 	}
-
 	defer file.Close()
 
-	_, err2 := file.Write(rssFeed)
-	if err2 != nil {
-		fmt.Println("Error writing to file:", err)
-		return
+	if _, err := file.Write(rssFeed); err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
 	}
 
-	fmt.Println("Rss generated")
-
+	return nil
 }
 
 type NieuwsResponse struct {
